@@ -1,0 +1,12 @@
+.pioenvs
+CMakeListsPrivate.txt
+.clang_complete
+.gcc-flags.json
+.piolibdeps
+/lib/readme.txt
+/lib/Metro/examples/*/
+/lib/Metro/LICENSE
+/lib/Metro/README.md
+/lib/Metro/keywords.txt
+cmake-build-debug/
+data/
