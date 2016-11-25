@@ -2,7 +2,8 @@
 #include <Homie.h>
 #include <Adafruit_NeoPixel.h>
 #include <Boards.h>
-//#include <Metro.h>
+#include <Task.h>
+#include <TaskRainbow.h>
 
 #define PIXEL_TYPE_GRB "grb"
 #define PIXEL_TYPE_RGB "rgb"
@@ -14,24 +15,16 @@
 #define DEFAULT_DATA_PIN D6
 
 HomieNode stripNode("light-strip", "light-strip");
-HomieSetting<long> dataPinSetting("data_pin", "Data pin for NeoPixels; default 6");
-HomieSetting<long> pixelCountSetting("pixel_count", "Number of pixels in strip; default 60");
-HomieSetting<const char *> pixelTypeSetting("pixel_type", "One of 'rgb', 'grb', 'rgbw'; default 'grb'");
-
+HomieSetting<long> dataPinSetting("data_pin",
+  "Data pin for NeoPixels; default 6");
+HomieSetting<long> speedSetting("speed", "Cycle speed");
+HomieSetting<long> pixelCountSetting("pixel_count",
+  "Number of pixels in strip; default 60");
+HomieSetting<const char *> pixelTypeSetting("pixel_type",
+  "One of 'rgb', 'grb', 'rgbw'; default 'grb'");
 Adafruit_NeoPixel strip;
-
-void stripOn () {
-  long pixelCount = pixelCountSetting.get();
-  for (uint8_t i = 0; i < pixelCount; i++) {
-    strip.setPixelColor(i, strip.Color(255, 255, 255));
-  }
-  strip.show();
-}
-
-void stripOff () {
-  strip.clear();
-  strip.show();
-}
+TaskManager taskManager;
+TaskRainbow taskRainbow(strip);
 
 neoPixelType getPixelType () {
   const char *pixelType = pixelTypeSetting.get();
@@ -56,8 +49,14 @@ void setupSettings () {
 
   pixelTypeSetting.setDefaultValue(DEFAULT_PIXEL_TYPE).setValidator(
     std::function<bool (const char *)>([] (const char *value) {
-      return strcmp(value, PIXEL_TYPE_GRB) == 0 || strcmp(value, PIXEL_TYPE_RGB) == 0 ||
-             strcmp(value, PIXEL_TYPE_RGBW) == 0;
+      return strcmp(value, PIXEL_TYPE_GRB) == 0 ||
+        strcmp(value, PIXEL_TYPE_RGB) == 0 ||
+        strcmp(value, PIXEL_TYPE_RGBW) == 0;
+    }));
+
+  speedSetting.setDefaultValue(20).setValidator(
+    std::function<bool (long)>([] (long value) {
+      return value > 0;
     }));
 }
 
@@ -68,21 +67,27 @@ void setupHomie () {
 
 void setupEvents () {
   stripNode.advertise("on").settable(
-    std::function<bool (const HomieRange &, const String &)>([] (const HomieRange &range, const String &value) {
-      if (value.equalsIgnoreCase("true") || value.equals("1")) {
-        stripNode.setProperty("on").send("true");
-        stripOn();
-      } else {
-        stripNode.setProperty("on").send("false");
-        stripOff();
-      }
-      return true;
-    }));
+    std::function<bool (const HomieRange &, const String &)>(
+      [] (const HomieRange &range, const String &value) {
+        if (value.equalsIgnoreCase("true") || value.equals("1")) {
+          if (taskManager.StatusTask(&taskRainbow) != TaskState_Running) {
+            stripNode.setProperty("on").send("true");
+            taskManager.StartTask(&taskRainbow);
+          }
+        } else {
+          if (taskManager.StatusTask(&taskRainbow) == TaskState_Running) {
+            stripNode.setProperty("on").send("false");
+            taskManager.StopTask(&taskRainbow);
+          }
+        }
+        return true;
+      }));
 }
 
 void setupStrip () {
-  strip = Adafruit_NeoPixel((uint16_t) pixelCountSetting.get(), (uint8_t) dataPinSetting.get(),
-                            (neoPixelType) (getPixelType() + DEFAULT_PIXEL_KHZ));
+  strip = Adafruit_NeoPixel((uint16_t) pixelCountSetting.get(),
+    (uint8_t) dataPinSetting.get(),
+    (neoPixelType) (getPixelType() + DEFAULT_PIXEL_KHZ));
   strip.begin();
 }
 
@@ -91,13 +96,17 @@ void setup () {
   Serial << endl << endl;
   setupSettings();
   Serial.println("Settings configured");
+  taskRainbow.setTimeInterval((uint32_t) speedSetting.get());
   setupHomie();
   Serial.println("Homie configured");
   setupStrip();
   Serial.println("Strip configured");
+  taskManager.StartTask(&taskRainbow);
   setupEvents();
+  Serial.println("Events configured");
 }
 
 void loop () {
   Homie.loop();
+  taskManager.Loop();
 }
