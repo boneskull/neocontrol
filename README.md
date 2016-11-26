@@ -11,6 +11,7 @@ This thing uses [homie-esp8266](https://homie-esp8266.readme.io/) to control a s
 - Data pin, initial speed, NeoPixel type (GRB, RGB, RGBW etc), and pixel count are configurable via JSON and MQTT, as well as WiFi and MQTT config.
 - Uses [PlatformIO](http://platformio.org/).
 - Built for a [WeMos D1 Mini](https://www.wemos.cc/product/d1-mini.html); should work with most ESP8266 boards.
+- CMake setup is for CLion.
 
 Maybe this is good example code for somebody?
 
