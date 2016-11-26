@@ -12,11 +12,12 @@
 #define DEFAULT_PIXEL_KHZ NEO_KHZ800
 #define DEFAULT_PIXEL_TYPE PIXEL_TYPE_GRB
 #define DEFAULT_PIXEL_COUNT 9
-#define DEFAULT_DATA_PIN D6
+#define DEFAULT_DATA_PIN D1
+#define DEFAULT_CYCLE_SPEED 200
 
 HomieNode stripNode("light-strip", "light-strip");
 HomieSetting<long> dataPinSetting("data_pin",
-  "Data pin for NeoPixels; default 6");
+  "Data pin for NeoPixels; default D1");
 HomieSetting<long> speedSetting("speed", "Cycle speed");
 HomieSetting<long> pixelCountSetting("pixel_count",
   "Number of pixels in strip; default 60");
@@ -54,10 +55,14 @@ void setupSettings () {
         strcmp(value, PIXEL_TYPE_RGBW) == 0;
     }));
 
-  speedSetting.setDefaultValue(20).setValidator(
+  speedSetting.setDefaultValue(DEFAULT_CYCLE_SPEED).setValidator(
     std::function<bool (long)>([] (long value) {
       return value > 0;
     }));
+
+  Serial.print("Setting speed to ");
+  Serial.println(speedSetting.get());
+  taskRainbow.setTimeInterval((uint32_t) speedSetting.get());
 }
 
 void setupHomie () {
@@ -66,6 +71,18 @@ void setupHomie () {
 }
 
 void setupEvents () {
+  stripNode.advertise("speed").settable(
+    std::function<bool (const HomieRange &, const String &)>(
+      [] (const HomieRange &range, const String &value) {
+        long speed = value.toInt();
+        if (speed > 0 && speed != speedSetting.get()) {
+          taskRainbow.setTimeInterval((uint32_t)speed);
+          stripNode.setProperty("speed").send(String(speed));
+          return true;
+        }
+        return false;
+      }));
+
   stripNode.advertise("on").settable(
     std::function<bool (const HomieRange &, const String &)>(
       [] (const HomieRange &range, const String &value) {
@@ -85,9 +102,9 @@ void setupEvents () {
 }
 
 void setupStrip () {
-  strip = Adafruit_NeoPixel((uint16_t) pixelCountSetting.get(),
-    (uint8_t) dataPinSetting.get(),
-    (neoPixelType) (getPixelType() + DEFAULT_PIXEL_KHZ));
+  strip.setPin((uint8_t) dataPinSetting.get());
+  strip.updateType((neoPixelType) (getPixelType() + DEFAULT_PIXEL_KHZ));
+  strip.updateLength((uint16_t) pixelCountSetting.get());
   strip.begin();
 }
 
@@ -96,14 +113,13 @@ void setup () {
   Serial << endl << endl;
   setupSettings();
   Serial.println("Settings configured");
-  taskRainbow.setTimeInterval((uint32_t) speedSetting.get());
   setupHomie();
   Serial.println("Homie configured");
   setupStrip();
   Serial.println("Strip configured");
-  taskManager.StartTask(&taskRainbow);
   setupEvents();
   Serial.println("Events configured");
+  taskManager.StartTask(&taskRainbow);
 }
 
 void loop () {

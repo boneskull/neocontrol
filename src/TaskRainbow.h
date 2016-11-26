@@ -10,7 +10,8 @@ class TaskRainbow : public Task {
 public:
   TaskRainbow (Adafruit_NeoPixel &neoPixelStrip);
 private:
-  Adafruit_NeoPixel strip;
+  Adafruit_NeoPixel &strip;
+  bool forwards;
   byte position;
 
   virtual bool OnStart ();
@@ -19,7 +20,7 @@ private:
 
   virtual void OnUpdate (uint32_t deltaTime);
 
-  uint32_t wheel (byte position);
+  uint32_t wheel (byte pos);
 };
 
 #endif //NEOCONTROL_TASKRAINBOW_H
